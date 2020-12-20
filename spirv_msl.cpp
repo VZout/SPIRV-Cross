@@ -1180,8 +1180,6 @@ void CompilerMSL::emit_entry_point_declarations()
 
 string CompilerMSL::compile()
 {
-	ir.fixup_reserved_names();
-
 	// Do not deal with GLES-isms like precision, older extensions and such.
 	options.vulkan_semantics = true;
 	options.es = false;
@@ -1229,6 +1227,7 @@ string CompilerMSL::compile()
 
 	fixup_type_alias();
 	replace_illegal_names();
+	ir.fixup_reserved_names();
 
 	build_function_control_flow_graphs_and_analyze();
 	update_active_builtins();
@@ -11054,8 +11053,11 @@ void CompilerMSL::fix_up_shader_inputs_outputs()
 		}
 	});
 
+	// BOOKMARKHERE
+	bool parsed_multiview = false;
+
 	// Builtin variables
-	ir.for_each_typed_id<SPIRVariable>([this, &entry_func](uint32_t, SPIRVariable &var) {
+	ir.for_each_typed_id<SPIRVariable>([this, &entry_func, &parsed_multiview](uint32_t, SPIRVariable &var) {
 		uint32_t var_id = var.self;
 		BuiltIn bi_type = ir.meta[var_id].decoration.builtin_type;
 
@@ -11368,9 +11370,18 @@ void CompilerMSL::fix_up_shader_inputs_outputs()
 				{
 					// According to the Vulkan spec, when not running under a multiview
 					// render pass, ViewIndex is 0.
-					entry_func.fixup_hooks_in.push_back([=]() {
-						statement("const ", builtin_type_decl(bi_type), " ", to_expression(var_id), " = 0;");
-					});
+					bool already_done =
+				        parsed_multiview && bi_type == BuiltIn::BuiltInViewIndex;
+					if (bi_type == BuiltIn::BuiltInViewIndex) {
+						parsed_multiview = true;
+					}
+
+					if (!already_done)
+				    {
+					    entry_func.fixup_hooks_in.push_back([=]() {
+						    statement("const ", builtin_type_decl(bi_type), " ", to_expression(var_id), " = 0;");
+					    });
+				    }
 				}
 				else if (msl_options.view_index_from_device_index)
 				{
@@ -12182,10 +12193,11 @@ void CompilerMSL::replace_illegal_names()
 	{
 		// Change both the entry point name and the alias, to keep them synced.
 		string &ep_name = entry.second.name;
-		if (illegal_func_names.find(ep_name) != end(illegal_func_names)) {
+		if (illegal_func_names.find(ep_name) != end(illegal_func_names))
 			ep_name += "0";
-			ir.meta[entry.first].decoration.alias += "0";
-		}
+
+		// Always write this because entry point might have been renamed earlier.
+		ir.meta[entry.first].decoration.alias = ep_name;
 	}
 
 	CompilerGLSL::replace_illegal_names();
