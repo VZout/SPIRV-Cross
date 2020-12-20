@@ -12182,11 +12182,10 @@ void CompilerMSL::replace_illegal_names()
 	{
 		// Change both the entry point name and the alias, to keep them synced.
 		string &ep_name = entry.second.name;
-		if (illegal_func_names.find(ep_name) != end(illegal_func_names))
+		if (illegal_func_names.find(ep_name) != end(illegal_func_names)) {
 			ep_name += "0";
-
-		// Always write this because entry point might have been renamed earlier.
-		ir.meta[entry.first].decoration.alias = ep_name;
+			ir.meta[entry.first].decoration.alias += "0";
+		}
 	}
 
 	CompilerGLSL::replace_illegal_names();
