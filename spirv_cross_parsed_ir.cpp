@@ -83,6 +83,7 @@ ParsedIR &ParsedIR::operator=(ParsedIR &&other) SPIRV_CROSS_NOEXCEPT
 		loop_iteration_depth_soft = other.loop_iteration_depth_soft;
 
 		meta_needing_name_fixup = std::move(other.meta_needing_name_fixup);
+		entry_needing_name_fixup = std::move(other.entry_needing_name_fixup);
 	}
 	return *this;
 }
@@ -116,6 +117,7 @@ ParsedIR &ParsedIR::operator=(const ParsedIR &other)
 		memory_model = other.memory_model;
 
 		meta_needing_name_fixup = other.meta_needing_name_fixup;
+		entry_needing_name_fixup = other.entry_needing_name_fixup;
 
 		// Very deliberate copying of IDs. There is no default copy constructor, nor a simple default constructor.
 		// Construct object first so we have the correct allocator set-up, then we can copy object into our new pool group.
@@ -328,6 +330,13 @@ void ParsedIR::fixup_reserved_names()
 			sanitize_identifier(memb.alias, true, false);
 	}
 	meta_needing_name_fixup.clear();
+
+	for (uint32_t id : entry_needing_name_fixup)
+	{
+		auto &m = entry_points[id];
+		sanitize_identifier(m.name, false, false);
+	}
+	entry_needing_name_fixup.clear();
 }
 
 void ParsedIR::set_name(ID id, const string &name)
@@ -335,7 +344,17 @@ void ParsedIR::set_name(ID id, const string &name)
 	auto &m = meta[id];
 	m.decoration.alias = name;
 	if (!is_valid_identifier(name) || is_reserved_identifier(name, false, false))
+	{
 		meta_needing_name_fixup.insert(id);
+
+			auto itr = find_if(begin(entry_points), end(entry_points),
+		                   [&](const std::pair<uint32_t, SPIREntryPoint> &entry) -> bool {
+			                   return entry.second.orig_name == name;
+		                   });
+
+		if (itr != end(entry_points))
+			entry_needing_name_fixup.insert(id);
+	}
 }
 
 void ParsedIR::set_member_name(TypeID id, uint32_t index, const string &name)
