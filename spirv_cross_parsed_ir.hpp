@@ -241,6 +241,7 @@ private:
 	Bitset cleared_bitset;
 
 	std::unordered_set<uint32_t> meta_needing_name_fixup;
+	std::unordered_set<uint32_t> entry_needing_name_fixup;
 };
 } // namespace SPIRV_CROSS_NAMESPACE
 
